@@ -2,9 +2,9 @@
 
 ## Quick start
 
-First, you need to make sure you have the `rc`  and `mongo` docker images build and available in your docker registry.
+First, you need to make sure you have the `rc`  docker image build and available in your docker registry.
 
-See the `README.md` in each of the `rocketchat` and `mongo` directory on how to build the images.
+See the `README.md` in  the `rocketchat`` directory on how to build the image.
 
 ### start up mongo server
 
