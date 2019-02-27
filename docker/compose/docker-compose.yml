@@ -1,0 +1,29 @@
+version: '3'
+services:
+  mongo:
+    image: mongo:4-xenial 
+    volumes:
+      - "${PWD}/data:/data/db"
+    entrypoint: mongod --bind_ip_all --wiredTigerCacheSizeGB 0.25  --oplogSize 128 --replSet rs0
+    networks:
+      - inet
+  mongo-init-replica:
+    image: mongo:4-xenial
+    entrypoint: 'mongo mongo/rocketchat --eval "rs.initiate({ _id: ''rs0'', members: [ { _id: 0, host: ''mongo:27017'' } ]})"'
+    depends_on:
+      - mongo
+    networks:
+      - inet
+  rocketchat:
+    image: rc:latest
+    environment:
+      - ROOT_URL=http://localhost:3000
+      - MONGO_URL=mongodb://mongo:27017/rocketchat
+      - MONGO_OPLOG_URL=mongodb://mongo:27017/local
+      - MAIL_URL=smtp://smtp.email
+    ports:
+      - "3000:3000"
+    networks:
+      - inet
+networks:
+  inet:
