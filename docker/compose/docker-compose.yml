@@ -15,12 +15,11 @@ services:
     networks:
       - inet
   rocketchat:
-    image: rc:latest
+    image: rocketchat:arm64-2.1.0
     environment:
       - ROOT_URL=http://localhost:3000
       - MONGO_URL=mongodb://mongo:27017/rocketchat
       - MONGO_OPLOG_URL=mongodb://mongo:27017/local
-      - MAIL_URL=smtp://smtp.email
     ports:
       - "3000:3000"
     networks:
