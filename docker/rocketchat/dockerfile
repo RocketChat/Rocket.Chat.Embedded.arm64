@@ -1,4 +1,4 @@
-FROM arm64v8/node:8.15-stretch as builder
+FROM arm64v8/node:8.17-stretch as builder
 
 # crafted and tuned by pierre@ozoux.net and sing.li@rocket.chat
 MAINTAINER buildmaster@rocket.chat
@@ -17,7 +17,7 @@ RUN gpg --batch --keyserver ha.pool.sks-keyservers.net --recv-keys  0E163286C20D
 
  
 
-ENV RC_VERSION 2.1.0
+ENV RC_VERSION 2.4.9
 
 WORKDIR /app
 
@@ -48,7 +48,7 @@ RUN set -x \
  && npm rebuild bcrypt --build-from-source \
  && npm cache clear --force
 
-FROM arm64v8/node:8.15-stretch
+FROM arm64v8/node:8.17-stretch
 
 RUN groupadd -r rocketchat \
 &&  useradd -r -g rocketchat rocketchat \

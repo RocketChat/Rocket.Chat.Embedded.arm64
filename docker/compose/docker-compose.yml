@@ -15,7 +15,7 @@ services:
     networks:
       - inet
   rocketchat:
-    image: rocketchat:arm64-2.1.0
+    image: rocketchat:arm64-2.4.9
     environment:
       - ROOT_URL=http://localhost:3000
       - MONGO_URL=mongodb://mongo:27017/rocketchat
