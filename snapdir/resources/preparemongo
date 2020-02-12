@@ -5,7 +5,7 @@ then
     wget --backups=0 "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu1604-3.2.7.tgz"
     tar -zxvf ./mongodb-linux-x86_64-ubuntu1604-3.2.7.tgz --strip-components=1
 else
-    wget --backups=0 "https://fastdl.mongodb.org/linux/mongodb-linux-arm64-ubuntu1604-3.4.19.tgz"
-    tar -zxvf ./mongodb-linux-arm64-ubuntu1604-3.4.19.tgz --strip-components=1 --no-same-owner
-    rm ./mongodb-linux-arm64-ubuntu1604-3.4.19.tgz
+    wget --backups=0 "https://fastdl.mongodb.org/linux/mongodb-linux-arm64-ubuntu1604-3.6.17.tgz"
+    tar -zxvf ./mongodb-linux-arm64-ubuntu1604-3.6.17.tgz --strip-components=1 --no-same-owner
+    rm ./mongodb-linux-arm64-ubuntu1604-3.6.17.tgz
 fi
