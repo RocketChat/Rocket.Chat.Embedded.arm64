@@ -1,6 +1,6 @@
 #!/bin/bash
 
-curl -SLf "https://releases.rocket.chat/2.4.9/download/" -o rocket.chat.tgz
+curl -SLf "https://releases.rocket.chat/3.5.3/download/" -o rocket.chat.tgz
 
 tar xvf rocket.chat.tgz --strip 1
 rm rocket.chat.tgz

@@ -1,7 +1,7 @@
 # Rocket.Chat.Embedded.arm64
 An open source journey bringing the latest Rocket.Chat releases to the arm64 universe
 
-Latest version is: 3.2.2 of Rocket.Chat
+Latest version is: 3.5.3 of Rocket.Chat
 
 ### mongo supports MMAPv1 only for x86
 MongoDB has been updated to 3.6.17 for arm64 snaps
