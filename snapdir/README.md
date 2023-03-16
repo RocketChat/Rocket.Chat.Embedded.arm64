@@ -19,7 +19,7 @@ Connection from the Mac or Pi to a _very fast network_.   Gbps or more recommend
 
 ### Before the first build
 
-On a mac, you'll need to install [multipass](https://multipass.run/docs/installing-on-macos) which makes working with ubuntu VMs super easy.  Note that you should use the `brew` install method that will also install the _xcode command line tools_ which includes all the compiler tools and so on.  You will want to spend an evening reading the documentation of _multipass_.  It is super versatile, applicable to many things you may do, beyond just compiling arm64 snaps. 
+On a mac, you'll need to install [multipass](https://multipass.run/docs/installing-on-macos) which makes working with ubuntu VMs super easy.  Note that you should use the `brew` install method that will also install the _xcode command line tools_ which includes all the compiler tools and so on.  You will want to spend an evening reading the [documentation of _multipass_](https://multipass.run/docs).  It is super versatile, applicable to many things you may do, beyond just compiling arm64 snaps. 
 
 On a Pi or SBC, make sure you have a plain vanilla Ubuntu 18.04 (_bionic_) on the SD card/disk.  Anything with unsanctioned modified kernel is going to cause problem downstream.  No other distribution / release is going to work at this time.
 
