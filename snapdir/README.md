@@ -15,6 +15,8 @@ OR
 
 * Raspberry Pi 4 or other ARM64 SBC with at least 4GB of memory and a very fast SSD or SD card
 
+Connection from the Mac or Pi to a _very fast network_.   Gbps or more recommended.
+
 ### Before the first build
 
 On a mac, you'll need to install [multipass](https://multipass.run/docs/installing-on-macos) which makes working with ubuntu VMs super easy.  Note that you should use the `brew` install method that will also install the _xcode command line tools_ which includes all the compiler tools and so on.  You will want to spend an evening reading the documentation of _multipass_.  It is super versatile, applicable to many things you may do, beyond just compiling arm64 snaps. 
