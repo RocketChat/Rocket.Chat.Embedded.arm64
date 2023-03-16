@@ -1,121 +1,277 @@
-#
-# Easiest way to work with this file, from an updated Ubuntu 16.04 LTS image
-# 1.   create a non-root user with sudo priv and perform following steps as non-root
-# 2.  `sudo apt-get update`
-# 3.  `sudo apt-get install snapcraft python build-essential`
-# 4.  `snapcraft stage`
-# 5.  `snapcraft snap`
-
 name: rocketchat-server
-version: 3.8.1
-summary: Rocket.Chat server
-description: Have your own Slack like online chat, built with Meteor. https://rocket.chat/
+title: Rocket.Chat Server
+base: core18
+version: 4.5.5
+summary: An Open Source Slack Alternative
+description: |
+  Have your own Slack like online chat, built with Meteor. https://rocket.chat/
+
+epoch: 6
+
+grade: stable
 confinement: strict
-assumes: [snapd2.21]
+
+# adopt-info: rocketchat
+
 apps:
-    rocketchat-server:
-        command: startRocketChat
-        daemon: simple
-        plugs: [network, network-bind, desktop]
-    rocketchat-mongo:
-        command: startmongo
-        daemon: simple
-        plugs: [network, network-bind]
-    rocketchat-caddy:
-        command: env LC_ALL=C caddy -conf=$SNAP_DATA/Caddyfile
-        daemon: simple
-        plugs: [network, network-bind]
-    mongo:
-        command: env LC_ALL=C mongo
-        plugs: [network]
-    restoredb:
-        command: env LC_ALL=C restoredb
-        plugs: [network]
-    backupdb:
-        command: env LC_ALL=c rcbackup
-        plugs: [network]
-    initcaddy:
-        command: env LC_ALL=c initcaddy
+  rocketchat-mongo:
+    command: bin/start_mongod.sh
+    environment: {LC_ALL: C}
+    stop-command: bin/stop_mongod.sh
+    daemon: forking
+    plugs:
+      - network
+      - network-bind
+      - network-observe
+
+  rocketchat-server:
+    command: bin/start_rocketchat.sh
+    stop-command: bin/stop_rocketchat.sh
+    environment:
+      DEPLOY_METHOD: snap
+      LC_ALL: C
+    daemon: simple
+    after: [rocketchat-mongo]
+    plugs:
+      - network
+      - network-bind
+      - removable-media
+
+  rocketchat-caddy:
+    command: bin/start_caddy.sh
+    environment: {LC_ALL: C}
+    daemon: simple
+    install-mode: disable
+    plugs:
+      - network
+      - network-bind
+
+  mongo:
+    command: bin/mongo
+    environment: {LC_ALL: C}
+    plugs: [network]
+
+  backupdb:
+    command: bin/backupdb.sh
+    environment: {LC_ALL: C}
+    plugs: [network]
+
+  restoredb:
+    command: bin/restoredb.sh
+    environment: {LC_ALL: C}
+    plugs: [network]
+
 hooks:
-    configure:
-        plugs: [network]
-    pre-refresh:
-        plugs: [network]
+  install: &hook_plugs
+    plugs:
+      - network
+      - network-bind
+  pre-refresh: *hook_plugs
+  post-refresh: *hook_plugs
+  configure: *hook_plugs
 
 parts:
-    node:
-        plugin: dump 
-        prepare: wget https://nodejs.org/dist/v12.18.4/node-v12.18.4-linux-arm64.tar.xz; tar xvf node-v12.18.4-linux-arm64.tar.xz --strip 1; 
-        build-packages:
-            # For fibers
-            - python
-            - build-essential
-            - g++
-            - nodejs
-    rocketchat-server:
-        build-packages:
-            - curl
-        plugin: dump
-        prepare: ./resources/prepareRocketChat
-        after: [node]
-        source: .
-        stage-packages:
-            - execstack
-            - fontconfig-config
-        stage:
-            - programs
-            - main.js
-            - .node_version.txt
-            - etc
-            - usr
-            - star.json
-    mongodb:
-        build-packages:
-            - wget
-        source: ./
-        prepare: ./resources/preparemongo
-        plugin: dump
-        stage-packages:
-            - libssl1.0.0
-            - libcurl4-openssl-dev
-        stage:
-            - usr/lib
-            - usr/bin
-            - usr/share
-            - bin
-        prime:
-            - bin
-            - usr/bin
-            - usr/lib
-            - usr/share
-    scripts:
-        plugin: dump
-        source: resources/
-        organize:
-            rcbackup: bin/rcbackup
-            restoredb: bin/restoredb
-            startmongo: bin/startmongo
-            startRocketChat: bin/startRocketChat
-            initreplset.js: bin/initreplset.js
-            Caddyfile: bin/Caddyfile
-            initcaddy: bin/initcaddy
-        prime:
-            - bin
-    caddy:
-        prepare: ./resources/preparecaddy
-        plugin: dump
-        source: ./
-        prime:
-            - bin
-        organize:
-            caddy: bin/caddy
-        after: [mongodb]
-    hooks:
-        plugin: nil
-        stage-packages:
-            - dnsutils
-            - curl
-        prime:
-            - usr
-            - lib
+  mongodb:
+    plugin: dump
+    source:
+      - on arm64: https://fastdl.mongodb.org/linux/mongodb-linux-arm64-ubuntu1604-3.6.23.tgz
+    stage-packages:
+      # For the dependecies:
+      # https://docs.mongodb.com/manual/tutorial/install-mongodb-on-ubuntu-tarball/#install-mongodb-community-edition
+      - libcurl4
+      - openssl
+      - liblzma5
+    filesets:
+      excluded:
+        - -LICENSE-Community.txt
+        - -MPL-2
+        - -README
+        - -THIRD-PARTY-NOTICES
+        - -THIRD-PARTY-NOTICES.gotools
+        - -usr/share
+        - -bin/bsondump
+        - -bin/install_compass
+        - -bin/mongoexport
+        - -bin/mongofiles
+        - -bin/mongoimport
+        - -bin/mongoreplay
+        - -bin/mongos
+        - -bin/mongostat
+        - -bin/mongotop
+    stage: [$excluded]
 
+  # mongodb-tools:
+  #   plugin: dump
+  #   source:
+  #     - on arm64: https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2004-arm64-100.5.0.tgz
+  #   stage:
+  #     - bin/mongodump
+  #     - bin/mongorestore
+
+  node:
+    plugin: dump
+    source:
+      - on arm64: https://nodejs.org/download/release/v14.18.3/node-v14.18.3-linux-arm64.tar.gz
+    stage:
+      - bin
+      - include
+      - lib
+
+  libvips:
+    source:
+      - on arm64: https://github.com/libvips/libvips/releases/download/v8.12.2/vips-8.12.2.tar.gz
+    # this should later be moved to meson (8.12+)
+    plugin: autotools
+    build-packages:
+      - build-essential
+      - swig
+      - libxml2-dev
+      - libfftw3-dev
+      - libmagickwand-dev
+      - libopenexr-dev
+      - liborc-0.4-0
+      - gobject-introspection
+      - libgsf-1-dev
+      - libglib2.0-dev
+      - liborc-0.4-dev
+      - gtk-doc-tools
+      - libopenslide-dev
+      - libmatio-dev
+      - libgif-dev
+      - libwebp-dev
+      - libjpeg-turbo8-dev
+      - libexpat1-dev
+    stage-packages:
+      - libaec0
+      - libcairo2
+      - libcroco3
+      - libdatrie1
+      - libexif12
+      - libfftw3-double3
+      - libfontconfig1
+      - libfreetype6
+      - libgdk-pixbuf2.0-0
+      - libgomp1
+      - libgraphite2-3
+      - libgsf-1-114
+      - libharfbuzz0b
+      - libhdf5-100
+      - libicu60
+      - libilmbase12
+      - libjbig0
+      - libjpeg-turbo8
+      - liblcms2-2
+      - liblqr-1-0
+      - libltdl7
+      - libmagickcore-6.q16-3
+      - libmatio4
+      - libopenexr22
+      - libopenjp2-7
+      - libopenslide0
+      - liborc-0.4-0
+      - libpango-1.0-0
+      - libpangocairo-1.0-0
+      - libpangoft2-1.0-0
+      - libpixman-1-0
+      - libpng16-16
+      - librsvg2-2
+      - libsz2
+      - libthai0
+      - libtiff5
+      - libwebp6
+      - libwebpdemux2
+      - libwebpmux3
+      - libx11-6
+      - libxau6
+      - libxcb-render0
+      - libxcb-shm0
+      - libxcb1
+      - libxdmcp6
+      - libxext6
+      - libxml2
+      - libxrender1
+
+  rocketchat:
+    plugin: dump
+    source: https://cdn-download.rocket.chat/build/rocket.chat-$SNAPCRAFT_PROJECT_VERSION.tgz
+    after:
+      - node
+      - libvips
+    build-packages:
+      - build-essential
+    override-build: |
+      (cd programs/server; npm i --production --unsafe-perm)
+      snapcraftctl build
+    filesets:
+      excluded:
+        - -README
+        - -README.md
+        - -LICENSE
+        - -CHANGELOG.md
+        - -share
+        # filesets are excluding hidden files
+        # BUG - need to fix upstream
+        # not a bug, design choice
+        - .node_version.txt
+        - '*'
+    stage: [$excluded]
+
+  caddyv2:
+    plugin: dump
+    source:
+      - on arm64: https://github.com/caddyserver/caddy/releases/download/v2.4.3/caddy_2.4.3_linux_arm64.tar.gz
+    organize:
+      caddy: bin/caddy2
+    filesets:
+      excluded:
+        - -README.md
+        - -LICENSE
+    stage: [$excluded]
+
+  caddyv1:
+    plugin: dump
+    source:
+      - on arm64: https://github.com/caddyserver/caddy/releases/download/v1.0.4/caddy_v1.0.4_linux_arm64.tar.gz
+    organize:
+      caddy: bin/caddy1
+    filesets:
+      excluded:
+        - -README.txt
+        - -LICENSES.txt
+        - -CHANGES.txt
+        - -init
+    stage: [$excluded]
+
+  yq:
+    plugin: dump
+    source:
+      - on arm64: https://github.com/mikefarah/yq/releases/download/v4.16.1/yq_linux_arm64.tar.gz
+    organize:
+      'yq_linux_*': bin/yq
+    stage: [bin]
+
+  daemons:
+    plugin: dump
+    source: ./daemons
+    organize:
+      '*': bin/
+
+  commands:
+    plugin: dump
+    source: ./commands
+    organize:
+      '*': bin/
+
+  migrations:
+    plugin: dump
+    source: ./migrations
+    organize:
+      '*': migrations/
+
+  helpers:
+    plugin: dump
+    source: ./helpers/
+    organize:
+      '*': helpers/
+
+  helper-dependencies: {plugin: nil, stage-packages: [jq]}

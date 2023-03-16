@@ -1,25 +1,31 @@
-#!/bin/bash
+#! /bin/bash
 
-export PATH="$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH"
-export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu"
-export LD_LIBRARY_PATH=$SNAP_LIBRARY_PATH:$LD_LIBRARY_PATH
+source $SNAP/helpers/environment.sh
+source $SNAP/helpers/common.sh
+source $SNAP/helpers/misc.sh
 
-TIMESTAMP=$(date +"%Y%m%d.%H%M")
+backup_if_enabled() {
+  [[ $(snapctl get backup-on-refresh) == "enable" ]] && {
+    backupdb.sh || {
+      echo "failed to backup rocketchat database before refresh" \
+        > $SNAP_COMMON/refresh_$(date +"%Y%m%d.%H%M").log
+    }
+  }
+}
 
-# stop rocketchat
-snapctl set snap-refreshing=true
+exec_pre_refresh_scripts() {
+  local scripts=()
+  # why do it the hard way?
+  # why should i answer *you*?
+  # this is *my* script, 👿
+  for script in `get_migrations`; do [[ $(awk -F/ '{ print $NF }' <<< $script) =~ ^([0-9]+)[^0-9a-zA-Z\/]{1}.+ ]] && scripts+=([$(( 10#${BASH_REMATCH[1]} ))]=$script); done
+  # scripts should now be in order
+  for script in ${scripts[@]}; do (source $script; start) || error "pre refresh migration script ${script#$SNAP/migrations/$dirname/}"; done
+}
 
-rocketchatpid=$(pgrep -f "node $SNAP/main.js")
-kill -9 $rocketchatpid
-if ! [ $? == 0 ]; then
-    echo "Failed to stop rocketchat service" > $SNAP_COMMON/refresh_${TIMESTAMP}.log
-fi
+main() {
+  backup_if_enabled
+  exec_pre_refresh_scripts
+}
 
-backup="$(snapctl get backup-on-refresh)"
-if [ $backup == "enable" ]; then
-    backupdb
-    if ! [ $? == 0 ]; then
-        echo "Failed rocketchat database backup before refresh" >> $SNAP_COMMON/refresh_${TIMESTAMP}.log
-    fi
-fi
-
+main

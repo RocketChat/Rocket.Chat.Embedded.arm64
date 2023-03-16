@@ -1,147 +1,95 @@
-#!/bin/bash
+#! /bin/bash
 
-export PATH="$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH"
-export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$SNAP/lib:$SNAP/usr/lib:$SNAP/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu"
-export LD_LIBRARY_PATH=$SNAP_LIBRARY_PATH:$LD_LIBRARY_PATH
+source $SNAP/helpers/environment.sh
+source $SNAP/helpers/common.sh
 
-# Obtain caddyurl value
-caddyurl="$(snapctl get caddy-url)"
-# Validate it
-#caddyurl_regex='^https?:\/\/([0-9A-Za-z\.-]+){1,}(\.[a-z\.]{2,6})?([\/\da-z\.-]+)?$' #(supporting path)
-caddyurl_regex='^https?:\/\/([0-9A-Za-z\.-]+){1,}(\.[a-z\.]{2,6})?$'
-if [ -n "$caddyurl" ]; then
-  if ! [[ $caddyurl =~ $caddyurl_regex ]]; then
-    echo "\"$caddyurl\" is not a valid url" >&2
-    exit 1
-  fi
-#else
-#  if [[ $siteurl =~ ^http: ]] && [[ $siteurl =~ ^http:\/\/([0-9A-Za-z\.-]+){1,}?(\.[a-z\.]{2,6})?\/([\/\da-z\.-]+){1,}$ ]]; then
-#    path=${siteurl#http://*/}
-#    site=${siteurl#"http://"}
-#    site=${site%%/*}
-#    site=http://$site
-#  elif [[ $siteurl =~ ^https: ]] && [[ $siteurl =~ ^https:\/\/([0-9A-Za-z\.-]+){1,}?(\.[a-z\.]{2,6})?\/([\/\da-z\.-]+){1,}$ ]]; then
-#    path=${siteurl#https://*/}
-#    site=${siteurl#"https://"}
-#    site=${site%%/*}
-#    site=https://$site
-#  else
-#    path=""
-#    site=$siteurl
-#  fi
-#  snapctl set path=$path
-#  snapctl set site=$site
-fi
+validate_and_set_root_url() {
+  local siteurl=$(snapctl get siteurl)
 
-# Obtain caddy value
-caddy="$(snapctl get caddy)"
-# Validate it
-caddy_regex='((enable)|(disable))'
-if ! [[ $caddy =~ $caddy_regex ]]; then
-    echo "\"$caddy_regex\" is not a valid, set to enable or disable" >&2  
-    exit 1
-else
-  if [[ $caddy == enable ]]; then
-    caddyurl="$(snapctl get caddy-url)"
-    if [ -z "$caddyurl" ]; then
-      echo "You tried to enable caddy but caddy-url is not set yet, please set up caddy-url first and then enable caddy again" >&2
-      snapctl set caddy=disable
-      exit 1
-    else
-      snapctl set siteurl=$caddyurl
-    fi
-  else
-    siteurl="$(snapctl get siteurl)"
-    if [ -n "$siteurl" ]; then
-      snapctl set siteurl=
-    fi
-  fi
-fi
+  local protocol="^(https?)://"
+  local ip="([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"
+  local domain="([a-zA-Z0-9\.-]+)"
+  local ip_or_domain="(${ip}|${domain})"
+  local port=":?([0-9]+)?"
+  local path="(/.*)?"
 
-# Obtain port value
-port="$(snapctl get port)"
-# Validate it
-port_regex='^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$'
-if ! [[ $port =~ $port_regex ]]; then
-    echo "\"$port\" is not a valid port" >&2
-    exit 1
-fi
+  [[ $siteurl =~ ${protocol}${ip_or_domain}${port}${path} ]]
+  protocol=${BASH_REMATCH[1]}
+  ip=${BASH_REMATCH[3]}
+  domain=${BASH_REMATCH[4]}
+  port=${BASH_REMATCH[5]}
 
-# Obtain mongourl value
-mongourl="$(snapctl get mongo-url)"
-# Validate it
-mongourl_regex='^mongodb:\/\/([0-9A-Za-z\.\-\_]+){1,}(([a-z\.\-\_]+){2,6})?(:[0-9]{2,5})?\/([0-9A-Za-z\_\-]+)$'
-if ! [[ $mongourl =~ $mongourl_regex ]] ; then
-    echo "\"$mongourl\" is not a valid url" >&2
-    exit 1
-fi
+  [[ -n $protocol ]] || error "no protocol found"
 
-# Obtain mongooplogurl value
-mongooplogurl="$(snapctl get mongo-oplog-url)"
-# Validate it
-mongooplogurl_regex='^mongodb:\/\/([0-9A-Za-z\.\-\_]+){1,}(([a-z\.\-\_]+){2,6})?(:[0-9]{2,5})?\/local$'
-if ! [[ $mongooplogurl =~ $mongooplogurl_regex ]] ; then
-    echo "\"$mongooplogurl\" is not a valid url" >&2
-    exit 1
-fi
+  if [[ -z $ip ]]; then
+    if [[ -n $domain ]]; then
 
-# Obtain site protocol
-https="$(snapctl get https)"
-# Validate it
-https_regex='((enable)|(disable))'
-if ! [[ $https =~ $https_regex ]]; then
-    echo "\"$https\" should be enable or disable" >&2
-    exit 1
-else
-  if [[ $https == enable ]] && [[ $caddyurl =~ ^http: ]]; then
-    echo "Error: You enabled https but your site URL starts with http, disabling https ..."
-    snapctl set https=disable
-    exit 1
-  elif [[ $https == enable ]] && [[ $caddyurl =~ ^https: ]]; then
-    domain=${caddyurl#"https://"}
-    domain=${domain%%/*}
-    pubip=$(dig $domain |grep -A1 ";; ANSWER SECTION:" |tail -1 | awk '{print $5}')
-    if [ -z "$pubip" ]; then
-      echo "Error: Can't resove DNS query for $domain, check your DNS configuration, disabling https ..."
-      snapctl set https=disable
-      exit 1
-    else
-      ip=$(curl ipinfo.io/ip 2>/dev/null)
-      if [[ $ip != $pubip ]]; then
-        echo "Error: Your public IP doesn't match the one resolved for caddy-url, disabling https ..."
-        snapctl set https=disable
-        exit 1
-      fi
-    fi
-  elif [[ $https == enable ]] && [ -z "$caddyurl" ]; then
-    echo "Error: You enabled https but your site URL is empty, please set caddy-url=<your_site_url>, disabling https ..."
-    snapctl set https=disable
-    exit 1
-  fi
-fi
+      ip=$(get_ip $domain)
+      [[ -z $ip ]] && error "\"$siteurl\" is not a valid url"
 
-# Obtain backup value
-backup="$(snapctl get backup-on-refresh)"
-# Validate it
-backup_regex='((enable)|(disable))'
-if ! [[ $backup =~ $backup_regex ]] ; then
-    echo "\"$backup\" should be enable or disable" >&2
-    exit 1
-fi
+      # [[ $protocol == "https" ]] && \
+      #   [[ $ip != $(curl ipinfo.io/ip 2>/dev/null) ]] && \
+      #     error "your public ip doesn't match the one resolved for siteurl"
 
-# Obtain db featureCompatibilityVersion
-db_featureCompatibilityVersion="$(snapctl get db-feature-compatibility-version)"
-db_featureCompatibilityVersion_regex='^3\.[4,6]$'
-if ! [[ $db_featureCompatibilityVersion =~ $db_featureCompatibilityVersion_regex ]] ; then
-    echo "\"$db_featureCompatibilityVersion\" should be 3.4 or 3.6" >&2
-    exit 1
-else
-    db_version=$(mongo --eval "printjson(db.version())" |tail -1 |tr -d '"' |cut -d. -f1,2)
-    if [[ $db_version == "3.6" ]] && [[ $db_featureCompatibilityVersion == "3.4" ]]; then
-        mongo --eval "printjson(db.adminCommand ({ setFeatureCompatibilityVersion: \"3.4\" }))"
-    elif [[ $db_version == "3.6" ]] && [[ $db_featureCompatibilityVersion == "3.6" ]]; then
-        mongo --eval "printjson(db.adminCommand ({ setFeatureCompatibilityVersion: \"3.6\" }))"
-    fi
-fi
+    else error "no main root url component found"; fi
+  else (IFS='.'; for byte in $ip; do (( $byte <= 255 )) || abort; done) || error "invalid ip component for siteurl detected"; fi
 
+  (( ${port:=1024} >= 1024 )) && (( $port <= 65535 )) || error "port number ($port) not in unreserved range"
 
+  cat > $SNAP_DATA/OVERWRITE_SETTING_Site_Url.env << EOF
+# It is recommended to use snap configuration
+# to update the Site_Url value.
+# sudo snap set rocketchat-server siteurl=\${Site_Url}
+
+# You can set it manually from here as well,
+# but remember whenever you change any of the other configurations
+# of this snap, siteurl will switch back to what you set using
+# snap set initially.
+
+OVERWRITE_SETTING_Site_Url=$siteurl
+EOF
+}
+
+validate_port() {
+  local port=$(snapctl get port)
+  [[ $port =~ ^[0-9]+$ ]] || error "\"$port\" not a valid number"
+  (( $port >= 1024 )) && (( $port <= 65535 )) || error "port number ($port) not in unreserved range"
+}
+
+_validate_mongo_url() {
+  # $1 - root connection uri
+  # $2 - database name
+  local protocol="^mongodb(\+srv)?://"
+  local authentication="((.+):(.+)@)?"
+  local host="[a-zA-Z0-9\.]+[a-zA-Z0-9]"
+  local port="(:[0-9]+)?"
+  local database="/${2:-.+}$"
+  [[ $1 =~ ${protocol}${authentication}${host}${port}${database} ]] || error "illegal mongo connection string"
+}
+
+validate_mongo_rocketchat_url() {
+  _validate_mongo_url $(snapctl get mongo-url)
+}
+
+validate_mongo_oplog_url() {
+  _validate_mongo_url $(snapctl get mongo-oplog-url) local
+}
+
+validate_backup_on_refresh() {
+  case $(snapctl get backup-on-refresh) in enable|disable) return ;; *) error "value must be either \"enable\" or \"disable\"" ;; esac
+}
+
+validate_ignore_errors() {
+  case $(snapctl get ignore-errors) in true|false) return ;; *) error "value must be either \"true\" or \"false\"" ;; esac
+}
+
+main() {
+  validate_port
+  validate_and_set_root_url
+  validate_mongo_rocketchat_url
+  validate_mongo_oplog_url
+  validate_backup_on_refresh
+  validate_ignore_errors
+}
+
+main

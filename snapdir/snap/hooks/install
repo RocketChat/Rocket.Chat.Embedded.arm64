@@ -1,26 +1,94 @@
 #!/bin/bash
 
-# Initialize the CADDY_URL to a default
-snapctl set caddy=disable
+source $SNAP/helpers/mongo.sh
 
-# Initialize the PORT to a default
-snapctl set port=3000
+init_replicaset() {
+  mongo_eval_with_error_check '
+      JSON.stringify(
+        rs.initiate(
+          {
+            _id: "rs0",
+            members: [
+              {
+                _id: 0,
+                host: "localhost:27017"
+              }
+            ]
+          }
+        )
+      )' "replicaset initialization failed"
+}
 
-# Initialize the MONGO_URL to a default
-snapctl set mongo-url=mongodb://localhost:27017/parties
+init_mongod_conf() {
+  cat >$SNAP_DATA/mongod.conf <<EOF
 
-# Initialize the MONGO_OPLOG_URL to a default
-snapctl set mongo-oplog-url=mongodb://localhost:27017/local
+# For documentation of all options, see:
+#   http://docs.mongodb.org/manual/reference/configuration-options/
 
-# Initialize the protocol to a default
-snapctl set https=disable
+# processManagement::fork and systemlog::* are ignored
 
-# Initialize backup to a default
-snapctl set backup-on-refresh=disable
+net:
+  bindIp: 127.0.0.1
+  port: 27017
 
-# Initialize snap-refreshing to false
-snapctl set snap-refreshing=false
+setParameter:
+  enableLocalhostAuthBypass: false
 
-# Initialize db-feature-compatibility-version to 3.6
-snapctl set db-feature-compatibility-version=3.6
+storage:
+  dbPath: $SNAP_COMMON
+  journal:
+    enabled: true
 
+systemLog:
+  destination: syslog
+
+replication:
+  replSetName: rs0
+
+processManagement:
+  pidFilePath: $SNAP_COMMON/mongod.pid
+
+EOF
+}
+init_caddy_conf() {
+  touch $SNAP_DATA/Caddyfile
+}
+
+init_default_snap_configurations() {
+  snapctl set port=3000
+  snapctl set siteurl=http://localhost:3000
+  snapctl set mongo-url=mongodb://localhost:27017/parties
+  snapctl set mongo-oplog-url=mongodb://localhost:27017/local
+  snapctl set backup-on-refresh=disable
+  snapctl set ignore-errors=false
+}
+
+
+init_mongod_feature_compatibility_version() {
+  set_feature_compatibility $(mongod_version_excluding_patch)
+}
+
+init_extra_environment_variables() {
+  cat>$SNAP_DATA/Rocker.Chat.Extra.env<<EOF
+# DO NOT UPDATE unless you know what you're doing
+XDG_DATA_HOME=\$SNAP/usr/share
+FONTCONFIG_PATH=\$SNAP/etc/fonts/config.d
+FONTCONFIG_FILE=\$SNAP/etc/fonts/fonts.conf
+BABEL_CACHE_DIR=/tmp
+EOF
+}
+
+main() {
+  init_default_snap_configurations
+  init_caddy_conf
+  init_mongod_conf
+  start_mongod
+  is_mongod_ready
+  init_replicaset
+  is_mongod_primary
+  init_mongod_feature_compatibility_version
+  stop_mongod
+  init_extra_environment_variables
+}
+
+main
